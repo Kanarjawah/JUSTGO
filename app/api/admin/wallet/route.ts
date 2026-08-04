@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { error, json, readJson } from '@/server/http';
 import { withAdmin } from '@/server/route-handler';
-import { appendLedgerEntry, ensureCustomerWallet, refreshWalletCaches } from '@/server/lib/wallet-ledger';
+import { appendLedgerEntry, ensureUserWallet, refreshWalletCaches } from '@/server/lib/wallet-ledger';
 import { writeAudit } from '@/server/lib/audit';
 import { toCents } from '@/server/lib/money';
 
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     const amountCents = toCents(body.amountLd);
     if (amountCents === 0) return error('Adjustment amount cannot be zero', 400);
 
-    const wallet = await ensureCustomerWallet(body.userId);
+    const wallet = await ensureUserWallet(body.userId);
     const key = body.idempotencyKey || `adj:${admin.id}:${randomBytes(8).toString('hex')}`;
 
     const { transaction, duplicate } = await appendLedgerEntry({

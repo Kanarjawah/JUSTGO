@@ -27,8 +27,8 @@ describe('Sign Up UI presence', () => {
 describe('wallet access policy source', () => {
   it('requires customer or admin for wallet API', () => {
     const source = readFileSync(path.join(process.cwd(), 'app/api/wallet/route.ts'), 'utf8');
-    expect(source).toContain("role !== 'CUSTOMER'");
-    expect(source).toContain("requireUser(['CUSTOMER'])");
+    expect(source).toContain("requireUser()");
+    expect(source).toContain('Forbidden');
     expect(source).not.toMatch(/availableCents:\s*req\.body/);
   });
 

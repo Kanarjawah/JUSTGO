@@ -1,11 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from '../../app/server/lib/password';
-import {
-  appendLedgerEntry,
-  computeAvailableCents,
-  ensureCustomerWallet,
-} from '../../app/server/lib/wallet-ledger';
+import { ensureUserWallet } from '../../app/server/lib/create-user-with-wallet';
+import { appendLedgerEntry, computeAvailableCents } from '../../app/server/lib/wallet-ledger';
 
 const prisma = new PrismaClient();
 
@@ -28,7 +25,7 @@ describe('wallet ledger', () => {
       },
     });
     userId = user.id;
-    const wallet = await ensureCustomerWallet(userId);
+    const wallet = await ensureUserWallet(userId);
     walletId = wallet.id;
   });
 

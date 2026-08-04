@@ -3,7 +3,7 @@ import { prisma } from '@/server/db';
 import { error, json, readJson } from '@/server/http';
 import { requireUser } from '@/server/authz';
 import { normalizePhone } from '@/server/lib/phone';
-import { ensureCustomerWallet } from '@/server/lib/wallet-ledger';
+import { ensureUserWallet } from '@/server/lib/wallet-ledger';
 
 export async function POST(request: Request) {
   const auth = await requireUser(['CUSTOMER']);
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       normalizePhone(body.momoPhone);
     }
 
-    const wallet = await ensureCustomerWallet(auth.user.id);
+    const wallet = await ensureUserWallet(auth.user.id);
     const ref = await prisma.paymentMethodReference.create({
       data: {
         userId: auth.user.id,

@@ -7,7 +7,7 @@ import { normalizePhone } from '@/server/lib/phone';
 import { encryptText } from '@/server/lib/crypto';
 import { customerPriceBreakdown, toCents } from '@/server/lib/money';
 import { writeAudit } from '@/server/lib/audit';
-import { appendLedgerEntry, ensureCustomerWallet, computeAvailableCents } from '@/server/lib/wallet-ledger';
+import { appendLedgerEntry, ensureUserWallet, computeAvailableCents } from '@/server/lib/wallet-ledger';
 import { Decimal } from 'decimal.js';
 
 const services = ['Ride', 'Transportation', 'Food Delivery', 'Store Delivery', 'Grocery Delivery', 'Pharmacy Delivery', 'Package Delivery', 'Courier Service'];
@@ -41,7 +41,7 @@ export async function createRide(request: Request) {
     let paymentStatus: 'PENDING' | 'PAID' = 'PENDING';
 
     if (body.paymentMethod === 'WALLET') {
-      const wallet = await ensureCustomerWallet(user.id);
+      const wallet = await ensureUserWallet(user.id);
       const available = await computeAvailableCents(wallet.id);
       if (available < breakdown.totalCents) {
         return error(
@@ -69,7 +69,7 @@ export async function createRide(request: Request) {
     } });
 
     if (body.paymentMethod === 'WALLET') {
-      const wallet = await ensureCustomerWallet(user.id);
+      const wallet = await ensureUserWallet(user.id);
       await appendLedgerEntry({
         walletId: wallet.id,
         type: 'PURCHASE',
@@ -122,7 +122,7 @@ export async function createDelivery(request: Request) {
     let paymentStatus: 'PENDING' | 'PAID' = 'PENDING';
 
     if (body.paymentMethod === 'WALLET') {
-      const wallet = await ensureCustomerWallet(user.id);
+      const wallet = await ensureUserWallet(user.id);
       const available = await computeAvailableCents(wallet.id);
       if (available < breakdown.totalCents) {
         return error(
@@ -147,7 +147,7 @@ export async function createDelivery(request: Request) {
     } });
 
     if (body.paymentMethod === 'WALLET') {
-      const wallet = await ensureCustomerWallet(user.id);
+      const wallet = await ensureUserWallet(user.id);
       await appendLedgerEntry({
         walletId: wallet.id,
         type: 'PURCHASE',

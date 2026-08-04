@@ -1,11 +1,10 @@
 import { z } from 'zod';
-import { prisma } from '@/server/db';
 import { error, json, readJson } from '@/server/http';
 import { normalizePhone } from '@/server/lib/phone';
 import { assertStrongPassword, hashPassword } from '@/server/lib/password';
 import { rateLimit } from '@/server/lib/rate-limit';
 import { issueOtp } from '@/server/lib/otp';
-import { ensureCustomerWallet } from '@/server/lib/wallet-ledger';
+import { createUserWithWallet } from '@/server/lib/create-user-with-wallet';
 import { writeAudit } from '@/server/lib/audit';
 import { setSessionUserId } from '@/server/session';
 
@@ -47,6 +46,7 @@ export async function POST(request: Request) {
     }
 
     const email = body.email?.trim() ? body.email.trim().toLowerCase() : null;
+    const { prisma } = await import('@/server/db');
     const existingPhone = await prisma.user.findUnique({ where: { phone } });
     if (existingPhone) return error('An account with this phone number already exists', 409);
     if (email) {
@@ -58,46 +58,17 @@ export async function POST(request: Request) {
     const passwordHash = await hashPassword(body.password);
     const role = body.accountType;
 
-    const user = await prisma.$transaction(async (tx) => {
-      const created = await tx.user.create({
-        data: {
-          phone,
-          email,
-          passwordHash,
-          firstName,
-          lastName,
-          role,
-          status: 'PENDING',
-          termsAcceptedAt: new Date(),
-        },
-      });
-
-      if (role === 'CUSTOMER') {
-        await tx.customerProfile.create({ data: { userId: created.id } });
-      } else if (role === 'DRIVER') {
-        await tx.driverProfile.create({
-          data: {
-            userId: created.id,
-            applicationStatus: 'PENDING',
-            availability: { create: { status: 'OFF' } },
-          },
-        });
-      } else if (role === 'MERCHANT') {
-        await tx.merchantProfile.create({
-          data: {
-            userId: created.id,
-            businessName: `${firstName}'s business`,
-            applicationStatus: 'PENDING',
-          },
-        });
-      }
-
-      return created;
+    const { user, wallet } = await createUserWithWallet({
+      phone,
+      email,
+      passwordHash,
+      firstName,
+      lastName,
+      role,
+      status: 'PENDING',
+      termsAcceptedAt: new Date(),
+      merchant: role === 'MERCHANT' ? { businessName: `${firstName}'s business` } : undefined,
     });
-
-    if (role === 'CUSTOMER') {
-      await ensureCustomerWallet(user.id);
-    }
 
     await issueOtp(phone, user.id);
     await writeAudit({
@@ -105,10 +76,9 @@ export async function POST(request: Request) {
       action: 'REGISTER',
       entityType: 'User',
       entityId: user.id,
-      metadata: { role },
+      metadata: { role, walletPublicReference: wallet.publicReference },
     });
 
-    // Do not auto-login Driver/Merchant until approved; Customer may continue to OTP verify.
     if (role === 'CUSTOMER') {
       await setSessionUserId(user.id);
     }
@@ -127,13 +97,18 @@ export async function POST(request: Request) {
           phone: user.phone,
           status: user.status,
         },
+        wallet: {
+          publicReference: wallet.publicReference,
+          currency: wallet.currency,
+          availableCents: 0,
+        },
         requiresPhoneVerification: true,
         pendingAdminApproval: role !== 'CUSTOMER',
         redirectTo: dashboard,
         message:
           role === 'CUSTOMER'
-            ? 'Account created. Verify your phone with the OTP sent (dev: see server terminal).'
-            : 'Account created and pending administrator approval. Verify your phone with the OTP (dev: see server terminal).',
+            ? 'Account and wallet created. Verify your phone with the OTP (dev: see server terminal).'
+            : 'Account and wallet created; pending administrator approval. Verify your phone (dev: see server terminal).',
       },
       201,
     );

@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
+import { ensureUserWallet } from '../app/server/lib/create-user-with-wallet';
 
 const prisma = new PrismaClient();
 
@@ -37,12 +38,6 @@ async function main() {
       customerProfile: { create: {} },
     },
     include: { customerProfile: true },
-  });
-
-  await prisma.wallet.upsert({
-    where: { userId_currency: { userId: customer.id, currency: 'LRD' } },
-    update: {},
-    create: { userId: customer.id, currency: 'LRD', availableCents: 0, pendingCents: 0 },
   });
 
   const driver = await prisma.user.upsert({
@@ -115,6 +110,11 @@ async function main() {
     },
     include: { merchantProfile: { include: { store: true } } },
   });
+
+  // Authorized seed creates/ensures one wallet per role (including Administrator).
+  for (const u of [admin, customer, driver, merchant]) {
+    await ensureUserWallet(u.id);
+  }
 
   await prisma.systemSetting.upsert({
     where: { key: 'customer_fee_cents' },

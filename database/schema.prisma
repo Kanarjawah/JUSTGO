@@ -75,9 +75,53 @@ enum PaymentMethod {
 enum WalletTxType {
   RECHARGE
   PURCHASE
+  SERVICE_EARNING
+  MERCHANT_SETTLEMENT
+  PLATFORM_FEE
+  TAX
+  TIP
   REFUND
+  WITHDRAWAL
+  WITHDRAWAL_FEE
   ADJUSTMENT
   REVERSAL
+}
+
+enum WalletStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum WalletHoldStatus {
+  ACTIVE
+  RELEASED
+  CAPTURED
+}
+
+enum PayoutDestinationType {
+  BANK_ACCOUNT
+  MTN_MOMO
+  ORANGE_MONEY
+}
+
+enum PayoutVerificationStatus {
+  UNVERIFIED
+  PENDING_OTP
+  VERIFIED
+  REJECTED
+  DISABLED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  UNDER_REVIEW
+  PROCESSING
+  COMPLETED
+  FAILED
+  REJECTED
+  CANCELED
+  REVERSED
 }
 
 enum WalletTxStatus {
@@ -136,21 +180,24 @@ model User {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  customerProfile         CustomerProfile?
-  driverProfile           DriverProfile?
-  merchantProfile         MerchantProfile?
-  adminProfile            AdminProfile?
-  sessions                Session[]
-  otpCodes                OTPVerification[]
-  auditLogs               AuditLog[]              @relation("AuditActor")
-  supportTickets          SupportTicket[]
-  conductReports          ConductReport[]         @relation("Reporter")
-  safetyIncidents         SafetyIncident[]        @relation("Reporter")
-  reviewsWritten          Review[]                @relation("Reviewer")
-  statusChanges           RequestStatusHistory[]
-  wallets                 Wallet[]
-  paymentMethodRefs       PaymentMethodReference[]
-  walletTxCreated         WalletTransaction[]     @relation("WalletTxCreator")
+  customerProfile    CustomerProfile?
+  driverProfile      DriverProfile?
+  merchantProfile    MerchantProfile?
+  adminProfile       AdminProfile?
+  sessions           Session[]
+  otpCodes           OTPVerification[]
+  auditLogs          AuditLog[]               @relation("AuditActor")
+  supportTickets     SupportTicket[]
+  conductReports     ConductReport[]          @relation("Reporter")
+  safetyIncidents    SafetyIncident[]         @relation("Reporter")
+  reviewsWritten     Review[]                 @relation("Reviewer")
+  statusChanges      RequestStatusHistory[]
+  wallet             Wallet?
+  paymentMethodRefs  PaymentMethodReference[]
+  walletTxCreated    WalletTransaction[]      @relation("WalletTxCreator")
+  payoutDestinations PayoutDestination[]
+  withdrawalRequests WithdrawalRequest[]      @relation("WithdrawalRequester")
+  withdrawalReviews  WithdrawalRequest[]      @relation("WithdrawalReviewer")
 }
 
 model CustomerProfile {
@@ -166,14 +213,14 @@ model CustomerProfile {
 }
 
 model DriverProfile {
-  id               String            @id @default(cuid())
-  userId           String            @unique
-  user             User              @relation(fields: [userId], references: [id])
+  id                String            @id @default(cuid())
+  userId            String            @unique
+  user              User              @relation(fields: [userId], references: [id])
   applicationStatus ApplicationStatus @default(PENDING)
-  vehicleType      String?
-  licenseNumber    String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  vehicleType       String?
+  licenseNumber     String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   availability DriverAvailability?
   assignments  DriverAssignment[]
@@ -190,8 +237,8 @@ model MerchantProfile {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  store    Store?
-  reviews  Review[] @relation("MerchantReviews")
+  store   Store?
+  reviews Review[] @relation("MerchantReviews")
 }
 
 model AdminProfile {
@@ -211,15 +258,15 @@ model DriverAvailability {
 }
 
 model EmergencyContact {
-  id               String          @id @default(cuid())
-  customerId       String
-  customer         CustomerProfile @relation(fields: [customerId], references: [id])
-  nameEncrypted    String
-  phoneEncrypted   String
-  retentionNote    String          @default("Retained for trip safety and legal compliance; deletable on customer request after retention period.")
-  createdAt        DateTime        @default(now())
-  rideRequestId    String?
-  rideRequest      RideRequest?    @relation(fields: [rideRequestId], references: [id])
+  id             String          @id @default(cuid())
+  customerId     String
+  customer       CustomerProfile @relation(fields: [customerId], references: [id])
+  nameEncrypted  String
+  phoneEncrypted String
+  retentionNote  String          @default("Retained for trip safety and legal compliance; deletable on customer request after retention period.")
+  createdAt      DateTime        @default(now())
+  rideRequestId  String?
+  rideRequest    RideRequest?    @relation(fields: [rideRequestId], references: [id])
 }
 
 model RideRequest {
@@ -292,46 +339,46 @@ model DeliveryRequest {
 }
 
 model Order {
-  id                 String            @id @default(cuid())
-  requestNumber      String            @unique
+  id                 String              @id @default(cuid())
+  requestNumber      String              @unique
   customerId         String
-  customer           CustomerProfile   @relation(fields: [customerId], references: [id])
+  customer           CustomerProfile     @relation(fields: [customerId], references: [id])
   storeId            String?
-  store              Store?            @relation(fields: [storeId], references: [id])
-  deliveryRequestId  String?           @unique
-  deliveryRequest    DeliveryRequest?  @relation(fields: [deliveryRequestId], references: [id])
+  store              Store?              @relation(fields: [storeId], references: [id])
+  deliveryRequestId  String?             @unique
+  deliveryRequest    DeliveryRequest?    @relation(fields: [deliveryRequestId], references: [id])
   subtotalCents      Int
   totalCents         Int
-  paymentStatus      PaymentStatus     @default(PENDING)
+  paymentStatus      PaymentStatus       @default(PENDING)
   prepEstimateMin    Int?
   merchantPrepStatus MerchantPrepStatus?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   items OrderItem[]
 }
 
 model OrderItem {
-  id          String  @id @default(cuid())
-  orderId     String
-  order       Order   @relation(fields: [orderId], references: [id])
-  productId   String?
-  product     Product? @relation(fields: [productId], references: [id])
-  name        String
-  quantity    Int
-  priceCents  Int
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id])
+  productId  String?
+  product    Product? @relation(fields: [productId], references: [id])
+  name       String
+  quantity   Int
+  priceCents Int
 }
 
 model Store {
-  id               String          @id @default(cuid())
-  merchantId       String          @unique
-  merchant         MerchantProfile @relation(fields: [merchantId], references: [id])
-  name             String
-  description      String?
-  address          String?
-  preparationMins  Int             @default(20)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id              String          @id @default(cuid())
+  merchantId      String          @unique
+  merchant        MerchantProfile @relation(fields: [merchantId], references: [id])
+  name            String
+  description     String?
+  address         String?
+  preparationMins Int             @default(20)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   products Product[]
   orders   Order[]
@@ -431,66 +478,90 @@ model Tip {
 }
 
 model Refund {
-  id                   String               @id @default(cuid())
-  paymentId            String?
-  payment              Payment?             @relation(fields: [paymentId], references: [id])
-  walletTransactionId  String?              @unique
-  walletTransaction    WalletTransaction?   @relation(fields: [walletTransactionId], references: [id])
-  amountCents          Int
-  currency             String               @default("LRD")
-  reason               String
-  status               WalletTxStatus       @default(PENDING)
-  providerReference    String?
-  rideRequestId        String?
-  rideRequest          RideRequest?         @relation(fields: [rideRequestId], references: [id])
-  deliveryRequestId    String?
-  deliveryRequest      DeliveryRequest?     @relation(fields: [deliveryRequestId], references: [id])
-  createdAt            DateTime             @default(now())
-  completedAt          DateTime?
+  id                  String             @id @default(cuid())
+  paymentId           String?
+  payment             Payment?           @relation(fields: [paymentId], references: [id])
+  walletTransactionId String?            @unique
+  walletTransaction   WalletTransaction? @relation(fields: [walletTransactionId], references: [id])
+  amountCents         Int
+  currency            String             @default("LRD")
+  reason              String
+  status              WalletTxStatus     @default(PENDING)
+  providerReference   String?
+  rideRequestId       String?
+  rideRequest         RideRequest?       @relation(fields: [rideRequestId], references: [id])
+  deliveryRequestId   String?
+  deliveryRequest     DeliveryRequest?   @relation(fields: [deliveryRequestId], references: [id])
+  createdAt           DateTime           @default(now())
+  completedAt         DateTime?
 }
 
 model Wallet {
-  id               String                 @id @default(cuid())
-  userId           String
-  user             User                   @relation(fields: [userId], references: [id])
-  currency         String                 @default("LRD")
-  /// Cached available balance in Liberian dollar cents; authoritative balance is ledger-derived.
-  availableCents   Int                   @default(0)
-  pendingCents     Int                   @default(0)
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  id              String       @id @default(cuid())
+  /// Non-sequential public wallet reference — never use internal id as an account number.
+  publicReference String       @unique
+  userId          String       @unique
+  user            User         @relation(fields: [userId], references: [id])
+  currency        String       @default("LRD")
+  status          WalletStatus @default(ACTIVE)
+  /// Cached available balance in Liberian dollar cents; authoritative balance is ledger-derived minus active holds.
+  availableCents  Int          @default(0)
+  pendingCents    Int          @default(0)
+  heldCents       Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
-  transactions     WalletTransaction[]
-  paymentAttempts  PaymentAttempt[]
-  methodRefs       PaymentMethodReference[]
+  transactions       WalletTransaction[]
+  paymentAttempts    PaymentAttempt[]
+  methodRefs         PaymentMethodReference[]
+  holds              WalletHold[]
+  payoutDestinations PayoutDestination[]
+  withdrawalRequests WithdrawalRequest[]
+}
 
-  @@unique([userId, currency])
+model WalletHold {
+  id                  String             @id @default(cuid())
+  walletId            String
+  wallet              Wallet             @relation(fields: [walletId], references: [id])
+  amountCents         Int
+  currency            String             @default("LRD")
+  status              WalletHoldStatus   @default(ACTIVE)
+  reason              String
+  withdrawalRequestId String?            @unique
+  withdrawalRequest   WithdrawalRequest? @relation(fields: [withdrawalRequestId], references: [id])
+  idempotencyKey      String             @unique
+  createdAt           DateTime           @default(now())
+  releasedAt          DateTime?
+  capturedAt          DateTime?
+
+  @@index([walletId, status])
 }
 
 model WalletTransaction {
-  id                String          @id @default(cuid())
+  id                String           @id @default(cuid())
   walletId          String
-  wallet            Wallet          @relation(fields: [walletId], references: [id])
+  wallet            Wallet           @relation(fields: [walletId], references: [id])
   type              WalletTxType
   amountCents       Int
-  currency          String          @default("LRD")
-  status            WalletTxStatus  @default(PENDING)
+  currency          String           @default("LRD")
+  status            WalletTxStatus   @default(PENDING)
   provider          PaymentProvider?
   providerReference String?
   description       String
   relatedRideId     String?
   relatedDeliveryId String?
-  idempotencyKey    String          @unique
+  idempotencyKey    String           @unique
   createdById       String?
-  createdBy         User?           @relation("WalletTxCreator", fields: [createdById], references: [id])
-  createdAt         DateTime        @default(now())
+  createdBy         User?            @relation("WalletTxCreator", fields: [createdById], references: [id])
+  createdAt         DateTime         @default(now())
   completedAt       DateTime?
 
   refund            Refund?
   paymentAttempt    PaymentAttempt?
+  withdrawalRequest WithdrawalRequest?
 
-  @@index([walletId, createdAt])
   @@unique([provider, providerReference])
+  @@index([walletId, createdAt])
 }
 
 model PaymentAttempt {
@@ -513,27 +584,85 @@ model PaymentAttempt {
   updatedAt         DateTime             @updatedAt
   completedAt       DateTime?
 
-  @@index([userId, createdAt])
   @@unique([provider, providerReference])
+  @@index([userId, createdAt])
 }
 
 model PaymentMethodReference {
-  id              String         @id @default(cuid())
+  id              String          @id @default(cuid())
   userId          String
-  user            User           @relation(fields: [userId], references: [id])
+  user            User            @relation(fields: [userId], references: [id])
   walletId        String?
-  wallet          Wallet?        @relation(fields: [walletId], references: [id])
+  wallet          Wallet?         @relation(fields: [walletId], references: [id])
   method          PaymentMethod
   provider        PaymentProvider
   /// Token or external reference from a PCI-compliant provider — never a full PAN/CVV/PIN.
   externalRef     String?
   displayHint     String
   momoPhoneMasked String?
-  active          Boolean        @default(true)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   @@index([userId])
+}
+
+model PayoutDestination {
+  id                     String                   @id @default(cuid())
+  userId                 String
+  user                   User                     @relation(fields: [userId], references: [id])
+  walletId               String
+  wallet                 Wallet                   @relation(fields: [walletId], references: [id])
+  type                   PayoutDestinationType
+  accountHolderName      String
+  bankName               String?
+  /// Encrypted token or encrypted account number — never returned in full via API.
+  accountNumberEncrypted String?
+  bankOrBranchCode       String?
+  provider               PaymentProvider?
+  phoneEncrypted         String?
+  currency               String                   @default("LRD")
+  country                String                   @default("LR")
+  verificationStatus     PayoutVerificationStatus @default(UNVERIFIED)
+  displayHint            String
+  active                 Boolean                  @default(true)
+  changeCooloffUntil     DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  verifiedAt             DateTime?
+
+  withdrawalRequests WithdrawalRequest[]
+
+  @@index([userId, active])
+}
+
+model WithdrawalRequest {
+  id                  String             @id @default(cuid())
+  walletId            String
+  wallet              Wallet             @relation(fields: [walletId], references: [id])
+  amountCents         Int
+  feeCents            Int                @default(0)
+  currency            String             @default("LRD")
+  payoutDestinationId String
+  payoutDestination   PayoutDestination  @relation(fields: [payoutDestinationId], references: [id])
+  provider            PaymentProvider?
+  status              WithdrawalStatus   @default(PENDING)
+  providerReference   String?
+  idempotencyKey      String             @unique
+  failureReason       String?
+  requestedById       String
+  requestedBy         User               @relation("WithdrawalRequester", fields: [requestedById], references: [id])
+  reviewedById        String?
+  reviewedBy          User?              @relation("WithdrawalReviewer", fields: [reviewedById], references: [id])
+  ledgerTxId          String?            @unique
+  ledgerTx            WalletTransaction? @relation(fields: [ledgerTxId], references: [id])
+  hold                WalletHold?
+  requestedAt         DateTime           @default(now())
+  reviewedAt          DateTime?
+  completedAt         DateTime?
+
+  @@index([walletId, status])
+  @@index([requestedById, requestedAt])
 }
 
 model Review {
@@ -641,11 +770,11 @@ model SmsDeliveryLog {
 }
 
 model IdentityDocument {
-  id           String   @id @default(cuid())
-  userId       String
-  docType      String
-  filePath     String
-  status       String   @default("PENDING")
-  reviewedAt   DateTime?
-  createdAt    DateTime @default(now())
+  id         String    @id @default(cuid())
+  userId     String
+  docType    String
+  filePath   String
+  status     String    @default("PENDING")
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
 }

@@ -13,6 +13,7 @@
     "db:migrate": "prisma migrate deploy --schema database/schema.prisma",
     "db:push": "prisma db push --schema database/schema.prisma",
     "db:seed": "tsx database/seed.ts",
+    "wallets:backfill": "tsx scripts/backfill-wallets.ts",
     "postinstall": "prisma generate --schema database/schema.prisma"
   },
   "dependencies": {
