@@ -62,12 +62,25 @@ Optional client helper: store the secret in `sessionStorage` under `justgo_admin
 - Secrets belong in `.env` / `.env.local` (see `.env.example`). Never commit secrets.
 - This app does not depend on `.openai/hosting.json` or ChatGPT Sites deployment configuration.
 
-## Deploy (Vercel)
+## Deploy (Hostinger / Node)
 
-Connect the repository to Vercel (Next.js framework). Set at least:
+Production site origin: set via environment (do not hard-code in source):
 
-- `DATABASE_URL` (use a persistent DB for production; SQLite file URLs are for local/dev only)
+- `APP_URL=https://justgolib.com`
+- `NEXT_PUBLIC_APP_URL=https://justgolib.com`
+- Optional alias: `CLIENT_ORIGIN=https://justgolib.com`
+
+Also set at least:
+
+- `DATABASE_URL` / `DIRECT_URL` (Supabase PostgreSQL pooled + direct URIs)
 - `SESSION_SECRET`
 - `ADMIN_DEV_GUARD_SECRET` (required for Admin APIs in production)
+- `NODE_ENV=production`
 
-Build command: `npm run build` (runs `next build`).
+Suggested Hostinger commands:
+
+- Install: `npm install`
+- Build: `npx prisma generate && npx prisma migrate deploy && npm run build`
+- Start: `npm start`
+
+Local docs only: http://localhost:3000 — never use localhost as a production URL fallback.
