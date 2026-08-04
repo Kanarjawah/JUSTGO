@@ -1,0 +1,519 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  DRIVER
+  MERCHANT
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+  PENDING
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AvailabilityStatus {
+  ONLINE
+  OFF
+}
+
+enum ServiceType {
+  RIDE
+  TRANSPORTATION
+  FOOD_DELIVERY
+  STORE_DELIVERY
+  GROCERY_DELIVERY
+  PHARMACY_DELIVERY
+  PACKAGE_DELIVERY
+  COURIER_SERVICE
+}
+
+enum AdminLifecycleStatus {
+  PENDING
+  ACCEPTED
+  CANCELED
+  REJECTED
+  REFUNDED
+  DISPUTED
+}
+
+enum FulfillmentStage {
+  ARRIVED
+  PICKUP
+  IN_TRANSIT
+  DELIVERED
+}
+
+enum MerchantPrepStatus {
+  ACCEPTED
+  PREPARING
+  READY_FOR_PICKUP
+}
+
+enum PaymentMethod {
+  MTN_MOMO
+  ORANGE_MONEY
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum FeeType {
+  CUSTOMER_PLATFORM
+  DRIVER_PLATFORM
+  MERCHANT
+  DELIVERY
+  RIDE
+}
+
+model User {
+  id           String        @id @default(cuid())
+  phone        String        @unique
+  email        String?       @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role
+  status       AccountStatus @default(ACTIVE)
+  failedLogins Int           @default(0)
+  lockedUntil  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  customerProfile CustomerProfile?
+  driverProfile   DriverProfile?
+  merchantProfile MerchantProfile?
+  adminProfile    AdminProfile?
+  sessions        Session[]
+  otpCodes        OTPVerification[]
+  auditLogs       AuditLog[]         @relation("AuditActor")
+  supportTickets  SupportTicket[]
+  conductReports  ConductReport[]    @relation("Reporter")
+  safetyIncidents SafetyIncident[]   @relation("Reporter")
+  reviewsWritten  Review[]           @relation("Reviewer")
+  statusChanges   RequestStatusHistory[]
+}
+
+model CustomerProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  emergencyContacts EmergencyContact[]
+  rideRequests      RideRequest[]
+  deliveryRequests  DeliveryRequest[]
+  orders            Order[]
+}
+
+model DriverProfile {
+  id               String            @id @default(cuid())
+  userId           String            @unique
+  user             User              @relation(fields: [userId], references: [id])
+  applicationStatus ApplicationStatus @default(PENDING)
+  vehicleType      String?
+  licenseNumber    String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  availability DriverAvailability?
+  assignments  DriverAssignment[]
+  tips         Tip[]
+  reviews      Review[]            @relation("DriverReviews")
+}
+
+model MerchantProfile {
+  id                String            @id @default(cuid())
+  userId            String            @unique
+  user              User              @relation(fields: [userId], references: [id])
+  applicationStatus ApplicationStatus @default(PENDING)
+  businessName      String
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  store    Store?
+  reviews  Review[] @relation("MerchantReviews")
+}
+
+model AdminProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  title     String   @default("Administrator")
+  createdAt DateTime @default(now())
+}
+
+model DriverAvailability {
+  id        String             @id @default(cuid())
+  driverId  String             @unique
+  driver    DriverProfile      @relation(fields: [driverId], references: [id])
+  status    AvailabilityStatus @default(OFF)
+  updatedAt DateTime           @updatedAt
+}
+
+model EmergencyContact {
+  id               String          @id @default(cuid())
+  customerId       String
+  customer         CustomerProfile @relation(fields: [customerId], references: [id])
+  nameEncrypted    String
+  phoneEncrypted   String
+  retentionNote    String          @default("Retained for trip safety and legal compliance; deletable on customer request after retention period.")
+  createdAt        DateTime        @default(now())
+  rideRequestId    String?
+  rideRequest      RideRequest?    @relation(fields: [rideRequestId], references: [id])
+}
+
+model RideRequest {
+  id                 String               @id @default(cuid())
+  requestNumber      String               @unique
+  customerId         String
+  customer           CustomerProfile      @relation(fields: [customerId], references: [id])
+  serviceType        ServiceType          @default(RIDE)
+  pickup             String
+  destination        String
+  pickupDate         String
+  pickupTime         String
+  riderCount         Int
+  customerPhone      String
+  accessibilityNeeds String?
+  tripNote           String?
+  estimatedFareCents Int
+  paymentMethod      PaymentMethod
+  safetyConsent      Boolean
+  adminStatus        AdminLifecycleStatus @default(PENDING)
+  fulfillmentStage   FulfillmentStage?
+  paymentStatus      PaymentStatus        @default(PENDING)
+  distanceKm         Float?
+  durationMin        Int?
+  instructions       String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  emergencyContacts EmergencyContact[]
+  assignment        DriverAssignment?
+  statusHistory     RequestStatusHistory[]
+  payment           Payment?
+  fees              Fee[]
+  taxes             Tax[]
+  tips              Tip[]
+  refunds           Refund[]
+  reviews           Review[]
+  incidents         SafetyIncident[]
+}
+
+model DeliveryRequest {
+  id                 String               @id @default(cuid())
+  requestNumber      String               @unique
+  customerId         String
+  customer           CustomerProfile      @relation(fields: [customerId], references: [id])
+  serviceType        ServiceType
+  pickup             String
+  destination        String
+  distanceKm         Float?
+  durationMin        Int?
+  estimatedEarnCents Int                  @default(0)
+  paymentStatus      PaymentStatus        @default(PENDING)
+  instructions       String?
+  adminStatus        AdminLifecycleStatus @default(PENDING)
+  fulfillmentStage   FulfillmentStage?
+  merchantPrepStatus MerchantPrepStatus?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  order         Order?
+  assignment    DriverAssignment?
+  statusHistory RequestStatusHistory[]
+  payment       Payment?
+  fees          Fee[]
+  taxes         Tax[]
+  tips          Tip[]
+  refunds       Refund[]
+  reviews       Review[]
+  incidents     SafetyIncident[]
+}
+
+model Order {
+  id                 String            @id @default(cuid())
+  requestNumber      String            @unique
+  customerId         String
+  customer           CustomerProfile   @relation(fields: [customerId], references: [id])
+  storeId            String?
+  store              Store?            @relation(fields: [storeId], references: [id])
+  deliveryRequestId  String?           @unique
+  deliveryRequest    DeliveryRequest?  @relation(fields: [deliveryRequestId], references: [id])
+  subtotalCents      Int
+  totalCents         Int
+  paymentStatus      PaymentStatus     @default(PENDING)
+  prepEstimateMin    Int?
+  merchantPrepStatus MerchantPrepStatus?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  items OrderItem[]
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id])
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+  name        String
+  quantity    Int
+  priceCents  Int
+}
+
+model Store {
+  id               String          @id @default(cuid())
+  merchantId       String          @unique
+  merchant         MerchantProfile @relation(fields: [merchantId], references: [id])
+  name             String
+  description      String?
+  address          String?
+  preparationMins  Int             @default(20)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  products Product[]
+  orders   Order[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id])
+  name        String
+  description String?
+  priceCents  Int
+  imagePath   String?
+  available   Boolean  @default(true)
+  outOfStock  Boolean  @default(false)
+  prepMins    Int      @default(15)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems OrderItem[]
+}
+
+model DriverAssignment {
+  id                String           @id @default(cuid())
+  driverId          String
+  driver            DriverProfile    @relation(fields: [driverId], references: [id])
+  rideRequestId     String?          @unique
+  rideRequest       RideRequest?     @relation(fields: [rideRequestId], references: [id])
+  deliveryRequestId String?          @unique
+  deliveryRequest   DeliveryRequest? @relation(fields: [deliveryRequestId], references: [id])
+  active            Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model RequestStatusHistory {
+  id                String            @id @default(cuid())
+  rideRequestId     String?
+  rideRequest       RideRequest?      @relation(fields: [rideRequestId], references: [id])
+  deliveryRequestId String?
+  deliveryRequest   DeliveryRequest?  @relation(fields: [deliveryRequestId], references: [id])
+  previousStage     FulfillmentStage?
+  newStage          FulfillmentStage
+  changedById       String
+  changedBy         User              @relation(fields: [changedById], references: [id])
+  createdAt         DateTime          @default(now())
+}
+
+model Payment {
+  id                String           @id @default(cuid())
+  rideRequestId     String?          @unique
+  rideRequest       RideRequest?     @relation(fields: [rideRequestId], references: [id])
+  deliveryRequestId String?          @unique
+  deliveryRequest   DeliveryRequest? @relation(fields: [deliveryRequestId], references: [id])
+  method            PaymentMethod
+  status            PaymentStatus    @default(PENDING)
+  amountCents       Int
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  refunds Refund[]
+}
+
+model Fee {
+  id                String           @id @default(cuid())
+  type              FeeType
+  amountCents       Int
+  rideRequestId     String?
+  rideRequest       RideRequest?     @relation(fields: [rideRequestId], references: [id])
+  deliveryRequestId String?
+  deliveryRequest   DeliveryRequest? @relation(fields: [deliveryRequestId], references: [id])
+  appliedAtComplete Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+}
+
+model Tax {
+  id                String           @id @default(cuid())
+  name              String           @default("GST")
+  amountCents       Int
+  rideRequestId     String?
+  rideRequest       RideRequest?     @relation(fields: [rideRequestId], references: [id])
+  deliveryRequestId String?
+  deliveryRequest   DeliveryRequest? @relation(fields: [deliveryRequestId], references: [id])
+  createdAt         DateTime         @default(now())
+}
+
+model Tip {
+  id                String           @id @default(cuid())
+  amountCents       Int
+  driverId          String
+  driver            DriverProfile    @relation(fields: [driverId], references: [id])
+  rideRequestId     String?
+  rideRequest       RideRequest?     @relation(fields: [rideRequestId], references: [id])
+  deliveryRequestId String?
+  deliveryRequest   DeliveryRequest? @relation(fields: [deliveryRequestId], references: [id])
+  createdAt         DateTime         @default(now())
+}
+
+model Refund {
+  id                String           @id @default(cuid())
+  paymentId         String
+  payment           Payment          @relation(fields: [paymentId], references: [id])
+  amountCents       Int
+  reason            String
+  rideRequestId     String?
+  rideRequest       RideRequest?     @relation(fields: [rideRequestId], references: [id])
+  deliveryRequestId String?
+  deliveryRequest   DeliveryRequest? @relation(fields: [deliveryRequestId], references: [id])
+  createdAt         DateTime         @default(now())
+}
+
+model Review {
+  id                String           @id @default(cuid())
+  rating            Int
+  comment           String?
+  reviewerId        String
+  reviewer          User             @relation("Reviewer", fields: [reviewerId], references: [id])
+  driverId          String?
+  driver            DriverProfile?   @relation("DriverReviews", fields: [driverId], references: [id])
+  merchantId        String?
+  merchant          MerchantProfile? @relation("MerchantReviews", fields: [merchantId], references: [id])
+  rideRequestId     String?
+  rideRequest       RideRequest?     @relation(fields: [rideRequestId], references: [id])
+  deliveryRequestId String?
+  deliveryRequest   DeliveryRequest? @relation(fields: [deliveryRequestId], references: [id])
+  overall           Boolean          @default(false)
+  moderated         Boolean          @default(false)
+  hidden            Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+}
+
+model ConductReport {
+  id          String   @id @default(cuid())
+  reporterId  String
+  reporter    User     @relation("Reporter", fields: [reporterId], references: [id])
+  subjectRole Role
+  subjectId   String
+  category    String
+  details     String
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model SafetyIncident {
+  id                String           @id @default(cuid())
+  reporterId        String
+  reporter          User             @relation("Reporter", fields: [reporterId], references: [id])
+  category          String
+  details           String
+  rideRequestId     String?
+  rideRequest       RideRequest?     @relation(fields: [rideRequestId], references: [id])
+  deliveryRequestId String?
+  deliveryRequest   DeliveryRequest? @relation(fields: [deliveryRequestId], references: [id])
+  createdAt         DateTime         @default(now())
+}
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  subject   String
+  body      String
+  status    String   @default("OPEN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OTPVerification {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  phone     String
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id])
+  action     String
+  entityType String
+  entityId   String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model SmsDeliveryLog {
+  id        String   @id @default(cuid())
+  phone     String
+  status    String
+  provider  String   @default("PLACEHOLDER")
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model IdentityDocument {
+  id           String   @id @default(cuid())
+  userId       String
+  docType      String
+  filePath     String
+  status       String   @default("PENDING")
+  reviewedAt   DateTime?
+  createdAt    DateTime @default(now())
+}
