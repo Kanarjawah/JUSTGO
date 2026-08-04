@@ -1,3 +1,5 @@
+'use client';
+
 function ld(cents: number) {
   return `L$${(cents / 100).toFixed(2)}`;
 }

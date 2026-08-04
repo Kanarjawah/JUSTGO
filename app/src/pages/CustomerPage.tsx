@@ -1,5 +1,7 @@
+'use client';
+
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 import SignInForm from '../components/SignInForm';
 import ProgressTracker from '../components/ProgressTracker';
@@ -188,7 +190,7 @@ export default function CustomerPage() {
         ))}
       </div>
       <p>
-        <Link className="text-link" to="/customer/ride">
+        <Link className="text-link" href="/customer/ride">
           Open Ride page
         </Link>
       </p>

@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useState } from 'react';
 import { Circle, Power } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';

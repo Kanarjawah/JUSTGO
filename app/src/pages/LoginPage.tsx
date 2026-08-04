@@ -1,10 +1,16 @@
+'use client';
+
 import SignInForm from '../components/SignInForm';
 import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function LoginPage() {
   const { user } = useAuth();
-  if (user) {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!user) return;
     const dest =
       user.role === 'ADMIN'
         ? '/admin'
@@ -13,8 +19,9 @@ export default function LoginPage() {
           : user.role === 'MERCHANT'
             ? '/merchant'
             : '/customer';
-    return <Navigate to={dest} replace />;
-  }
+    router.replace(dest);
+  }, [user, router]);
+
   return (
     <SignInForm
       title="Sign in to JUSTGO"

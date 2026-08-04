@@ -1,5 +1,8 @@
+'use client';
+
 import { ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   Car,
   Package,
@@ -28,6 +31,7 @@ const secondary = [
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
+  const pathname = usePathname();
 
   return (
     <div className="app-frame">
@@ -49,26 +53,26 @@ export default function AppShell({ children }: { children: ReactNode }) {
               </button>
             </>
           ) : (
-            <NavLink to="/login" className="wallet-chip">
+            <Link href="/login" className="wallet-chip">
               Sign in
-            </NavLink>
+            </Link>
           )}
-          <NavLink to="/wallet" className="wallet-chip">
+          <Link href="/wallet" className="wallet-chip">
             Wallet
-          </NavLink>
+          </Link>
         </div>
       </header>
 
       <nav className="main-nav" aria-label="Primary">
         {navItems.map(({ to, label, icon: Icon }) => (
-          <NavLink
+          <Link
             key={to}
-            to={to}
-            className={({ isActive }) => (isActive ? 'nav-pill active' : 'nav-pill')}
+            href={to}
+            className={pathname === to || pathname.startsWith(`${to}/`) ? 'nav-pill active' : 'nav-pill'}
           >
             <Icon size={16} aria-hidden="true" />
             <span>{label}</span>
-          </NavLink>
+          </Link>
         ))}
       </nav>
 
@@ -76,29 +80,29 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
       <nav className="bottom-nav" aria-label="Quick services">
         {secondary.map(({ to, label, icon: Icon }) => (
-          <NavLink
+          <Link
             key={to}
-            to={to}
-            className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}
+            href={to}
+            className={pathname === to || pathname.startsWith(`${to}/`) ? 'nav-item active' : 'nav-item'}
           >
             <Icon size={19} aria-hidden="true" />
             <span>{label}</span>
-          </NavLink>
+          </Link>
         ))}
-        <NavLink
-          to="/admin"
-          className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}
+        <Link
+          href="/admin"
+          className={pathname.startsWith('/admin') ? 'nav-item active' : 'nav-item'}
         >
           <Shield size={19} aria-hidden="true" />
           <span>Admin</span>
-        </NavLink>
-        <NavLink
-          to="/wallet"
-          className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}
+        </Link>
+        <Link
+          href="/wallet"
+          className={pathname.startsWith('/wallet') ? 'nav-item active' : 'nav-item'}
         >
           <Wallet size={19} aria-hidden="true" />
           <span>Wallet</span>
-        </NavLink>
+        </Link>
       </nav>
     </div>
   );

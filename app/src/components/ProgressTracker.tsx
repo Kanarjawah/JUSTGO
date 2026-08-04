@@ -1,3 +1,5 @@
+'use client';
+
 const STAGES = ['Arrived', 'Pickup', 'In Transit', 'Delivered'] as const;
 const KEYS = ['ARRIVED', 'PICKUP', 'IN_TRANSIT', 'DELIVERED'] as const;
 

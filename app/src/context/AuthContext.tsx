@@ -1,3 +1,5 @@
+'use client';
+
 import {
   createContext,
   useCallback,
@@ -7,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { api, clearCsrf } from '../lib/api';
+import { api } from '../lib/api';
 
 export type Role = 'CUSTOMER' | 'DRIVER' | 'MERCHANT' | 'ADMIN';
 
@@ -49,7 +51,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const login = useCallback(async (phone: string, password: string) => {
-    clearCsrf();
     const data = await api<{ user: AuthUser }>('/api/auth/login', {
       method: 'POST',
       json: { phone, password },
@@ -62,7 +63,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api('/api/auth/logout', { method: 'POST', json: {} });
     } finally {
-      clearCsrf();
       setUser(null);
     }
   }, []);

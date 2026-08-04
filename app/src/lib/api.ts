@@ -1,13 +1,3 @@
-let csrfToken: string | null = null;
-
-async function ensureCsrf() {
-  if (csrfToken) return csrfToken;
-  const res = await fetch('/api/csrf', { credentials: 'include' });
-  const data = await res.json();
-  csrfToken = data.csrfToken as string;
-  return csrfToken;
-}
-
 export async function api<T>(
   path: string,
   options: RequestInit & { json?: unknown } = {},
@@ -17,9 +7,9 @@ export async function api<T>(
   if (options.json !== undefined) {
     headers.set('Content-Type', 'application/json');
   }
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const token = await ensureCsrf();
-    headers.set('X-CSRF-Token', token);
+  if (typeof window !== 'undefined') {
+    const guard = window.sessionStorage.getItem('justgo_admin_guard');
+    if (guard) headers.set('x-justgo-admin-guard', guard);
   }
   const res = await fetch(path, {
     ...options,
@@ -38,5 +28,5 @@ export async function api<T>(
 }
 
 export function clearCsrf() {
-  csrfToken = null;
+  // Retained for compatibility with existing callers; CSRF is not used in the Next.js app.
 }

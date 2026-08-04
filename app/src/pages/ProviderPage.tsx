@@ -1,6 +1,12 @@
-import { Navigate } from 'react-router-dom';
+'use client';
 
-/** Legacy Provider route now opens the Driver dashboard (Availability + Current Requests). */
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
 export default function ProviderPage() {
-  return <Navigate to="/driver" replace />;
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/driver');
+  }, [router]);
+  return <p className="state">Opening Driver dashboard…</p>;
 }

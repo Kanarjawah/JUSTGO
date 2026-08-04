@@ -1,6 +1,12 @@
-import { Navigate } from 'react-router-dom';
+'use client';
 
-/** Ride is part of Customer Services — route preserved for bottom-nav quick access. */
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
 export default function RidePage() {
-  return <Navigate to="/customer" replace />;
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/customer');
+  }, [router]);
+  return <p className="state">Opening Ride…</p>;
 }

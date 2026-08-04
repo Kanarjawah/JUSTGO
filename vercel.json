@@ -1,16 +1,5 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
-  "installCommand": "npm install",
-  "buildCommand": "npm run build:web",
-  "outputDirectory": "dist",
-  "env": {
-    "DATABASE_URL": "file:./dev.db"
-  },
-  "rewrites": [
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
-    }
-  ]
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install"
 }

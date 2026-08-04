@@ -1,3 +1,5 @@
+'use client';
+
 import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import SignInForm from '../components/SignInForm';
