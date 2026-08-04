@@ -38,7 +38,8 @@ export default function CustomerPage() {
   const [ecPhone, setEcPhone] = useState('');
   const [accessibility, setAccessibility] = useState('');
   const [tripNote, setTripNote] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'MTN_MOMO' | 'ORANGE_MONEY'>('MTN_MOMO');
+  const [paymentMethod, setPaymentMethod] = useState<'MTN_MOMO' | 'ORANGE_MONEY' | 'WALLET' | 'CARD'>('MTN_MOMO');
+  const [walletAvailableCents, setWalletAvailableCents] = useState(0);
   const [tipLd, setTipLd] = useState('0');
   const [consent, setConsent] = useState(false);
 
@@ -51,24 +52,31 @@ export default function CustomerPage() {
     const tax = Math.round(subtotal * 0.05);
     const tip = Math.round(Number(tipLd || 0) * 100);
     const fee = 100;
+    const totalCents = subtotal + tax + fee + tip;
+    const walletAmountUsedCents = paymentMethod === 'WALLET' ? totalCents : 0;
+    const remainingExternalCents = paymentMethod === 'WALLET' ? 0 : totalCents;
     return {
       subtotalCents: subtotal,
       deliveryOrRideCents: 0,
       taxCents: tax,
       customerPlatformFeeCents: fee,
       tipCents: tip,
-      totalCents: subtotal + tax + fee + tip,
+      totalCents,
+      walletAmountUsedCents,
+      remainingExternalCents,
     };
-  }, [tipLd]);
+  }, [tipLd, paymentMethod]);
 
   async function load() {
     if (!user || user.role !== 'CUSTOMER') return;
-    const [svc, reqs] = await Promise.all([
+    const [svc, reqs, wallet] = await Promise.all([
       api<{ services: string[] }>('/api/customer/services'),
       api<{ requests: Array<Record<string, unknown>> }>('/api/customer/requests'),
+      api<{ wallet: { availableCents: number } }>('/api/wallet').catch(() => null),
     ]);
     setServices(svc.services);
     setRequests(reqs.requests);
+    if (wallet) setWalletAvailableCents(wallet.wallet.availableCents);
   }
 
   useEffect(() => {
@@ -257,13 +265,20 @@ export default function CustomerPage() {
             <span>Payment method</span>
             <select
               value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as 'MTN_MOMO' | 'ORANGE_MONEY')}
+              onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
             >
-              <option value="MTN_MOMO">MTN MoMo</option>
-              <option value="ORANGE_MONEY">Orange Money</option>
+              <option value="WALLET">JUSTGO Wallet (available L${(walletAvailableCents / 100).toFixed(2)})</option>
+              <option value="MTN_MOMO">MTN MoMo (integration pending)</option>
+              <option value="ORANGE_MONEY">Orange Money (integration pending)</option>
+              <option value="CARD">Debit or credit card (unavailable in development)</option>
             </select>
           </label>
-          <p className="muted">Cash payment is not supported. Live mobile-money settlement is not configured here.</p>
+          <p className="muted">
+            Cash payment is not supported. Orders are not marked paid until payment is verified server-side.
+            {paymentMethod === 'WALLET' && walletAvailableCents < breakdown.totalCents
+              ? ` Wallet shortfall: need L$${(breakdown.totalCents / 100).toFixed(2)}, have L$${(walletAvailableCents / 100).toFixed(2)}. Choose another method or recharge.`
+              : ''}
+          </p>
           <PriceBreakdown {...breakdown} />
           <label className="checkbox-field">
             <input

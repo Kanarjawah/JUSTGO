@@ -8,7 +8,7 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { phone: '+231770000001' },
-    update: {},
+    update: { phoneVerifiedAt: new Date() },
     create: {
       phone: '+231770000001',
       email: 'admin@justgo.lr',
@@ -17,13 +17,14 @@ async function main() {
       lastName: 'Admin',
       role: 'ADMIN',
       status: 'ACTIVE',
+      phoneVerifiedAt: new Date(),
       adminProfile: { create: { title: 'Platform Administrator' } },
     },
   });
 
   const customer = await prisma.user.upsert({
     where: { phone: '+231770000002' },
-    update: {},
+    update: { phoneVerifiedAt: new Date() },
     create: {
       phone: '+231770000002',
       email: 'customer@justgo.lr',
@@ -32,14 +33,21 @@ async function main() {
       lastName: 'Kollie',
       role: 'CUSTOMER',
       status: 'ACTIVE',
+      phoneVerifiedAt: new Date(),
       customerProfile: { create: {} },
     },
     include: { customerProfile: true },
   });
 
+  await prisma.wallet.upsert({
+    where: { userId_currency: { userId: customer.id, currency: 'LRD' } },
+    update: {},
+    create: { userId: customer.id, currency: 'LRD', availableCents: 0, pendingCents: 0 },
+  });
+
   const driver = await prisma.user.upsert({
     where: { phone: '+231770000003' },
-    update: {},
+    update: { phoneVerifiedAt: new Date() },
     create: {
       phone: '+231770000003',
       email: 'driver@justgo.lr',
@@ -48,6 +56,7 @@ async function main() {
       lastName: 'Driver',
       role: 'DRIVER',
       status: 'ACTIVE',
+      phoneVerifiedAt: new Date(),
       driverProfile: {
         create: {
           applicationStatus: 'APPROVED',
@@ -62,7 +71,7 @@ async function main() {
 
   const merchant = await prisma.user.upsert({
     where: { phone: '+231770000004' },
-    update: {},
+    update: { phoneVerifiedAt: new Date() },
     create: {
       phone: '+231770000004',
       email: 'merchant@justgo.lr',
@@ -71,6 +80,7 @@ async function main() {
       lastName: 'Merchant',
       role: 'MERCHANT',
       status: 'ACTIVE',
+      phoneVerifiedAt: new Date(),
       merchantProfile: {
         create: {
           applicationStatus: 'APPROVED',

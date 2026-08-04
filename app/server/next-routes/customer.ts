@@ -7,6 +7,8 @@ import { normalizePhone } from '@/server/lib/phone';
 import { encryptText } from '@/server/lib/crypto';
 import { customerPriceBreakdown, toCents } from '@/server/lib/money';
 import { writeAudit } from '@/server/lib/audit';
+import { appendLedgerEntry, ensureCustomerWallet, computeAvailableCents } from '@/server/lib/wallet-ledger';
+import { Decimal } from 'decimal.js';
 
 const services = ['Ride', 'Transportation', 'Food Delivery', 'Store Delivery', 'Grocery Delivery', 'Pharmacy Delivery', 'Package Delivery', 'Courier Service'];
 const number = (prefix: string) => `${prefix}-${Date.now().toString(36).toUpperCase()}-${randomBytes(2).toString('hex').toUpperCase()}`;
@@ -24,28 +26,79 @@ export async function createRide(request: Request) {
       customerPhone: z.string().min(7), emergencyContactName: z.string().min(2),
       emergencyContactPhone: z.string().min(7), accessibilityNeeds: z.string().optional(),
       tripNote: z.string().optional(), estimatedFareLd: z.union([z.number(), z.string()]),
-      paymentMethod: z.enum(['MTN_MOMO', 'ORANGE_MONEY']), tipLd: z.union([z.number(), z.string()]).optional(),
+      paymentMethod: z.enum(['MTN_MOMO', 'ORANGE_MONEY', 'WALLET', 'CARD']), tipLd: z.union([z.number(), z.string()]).optional(),
       safetyConsent: z.literal(true),
     }).parse(await readJson(request));
     const profile = await customer(user.id);
     if (!profile) return error('Customer profile not found', 404);
     const fareCents = toCents(body.estimatedFareLd);
     const tipCents = body.tipLd == null ? 0 : toCents(body.tipLd);
-    const taxCents = Math.round(fareCents * 0.05);
+    const taxCents = new Decimal(fareCents).mul(0.05).round().toNumber();
     const breakdown = customerPriceBreakdown({ subtotalCents: fareCents, deliveryOrRideCents: 0, taxCents, tipCents });
+
+    let walletAmountUsedCents = 0;
+    let remainingExternalCents = breakdown.totalCents;
+    let paymentStatus: 'PENDING' | 'PAID' = 'PENDING';
+
+    if (body.paymentMethod === 'WALLET') {
+      const wallet = await ensureCustomerWallet(user.id);
+      const available = await computeAvailableCents(wallet.id);
+      if (available < breakdown.totalCents) {
+        return error(
+          `Insufficient wallet funds. Available L$${(available / 100).toFixed(2)}; required L$${(breakdown.totalCents / 100).toFixed(2)}. Select another payment method or recharge.`,
+          400,
+        );
+      }
+      walletAmountUsedCents = breakdown.totalCents;
+      remainingExternalCents = 0;
+      paymentStatus = 'PAID';
+    } else if (body.paymentMethod === 'CARD') {
+      return error('Card checkout is unavailable in development until a PCI-compliant hosted provider is connected.', 400);
+    }
+
     const ride = await prisma.rideRequest.create({ data: {
       requestNumber: number('RIDE'), customerId: profile.id, serviceType: 'RIDE', pickup: body.pickup,
       destination: body.destination, pickupDate: body.pickupDate, pickupTime: body.pickupTime,
       riderCount: body.riderCount, customerPhone: normalizePhone(body.customerPhone),
       accessibilityNeeds: body.accessibilityNeeds, tripNote: body.tripNote, estimatedFareCents: fareCents,
-      paymentMethod: body.paymentMethod, safetyConsent: true, adminStatus: 'PENDING', paymentStatus: 'PENDING',
+      paymentMethod: body.paymentMethod, safetyConsent: true, adminStatus: 'PENDING', paymentStatus,
       distanceKm: 5.2, durationMin: 18,
       emergencyContacts: { create: { customerId: profile.id, nameEncrypted: encryptText(body.emergencyContactName), phoneEncrypted: encryptText(normalizePhone(body.emergencyContactPhone)) } },
-      payment: { create: { method: body.paymentMethod, status: 'PENDING', amountCents: breakdown.totalCents } },
+      payment: { create: { method: body.paymentMethod, status: paymentStatus, amountCents: breakdown.totalCents } },
       taxes: { create: { amountCents: taxCents } },
     } });
+
+    if (body.paymentMethod === 'WALLET') {
+      const wallet = await ensureCustomerWallet(user.id);
+      await appendLedgerEntry({
+        walletId: wallet.id,
+        type: 'PURCHASE',
+        amountCents: breakdown.totalCents,
+        description: `Ride ${ride.requestNumber}`,
+        idempotencyKey: `ride-pay:${ride.id}`,
+        provider: 'INTERNAL_WALLET',
+        providerReference: ride.id,
+        relatedRideId: ride.id,
+        createdById: user.id,
+        status: 'COMPLETED',
+      });
+    }
+
     await writeAudit({ actorId: user.id, action: 'CREATE_RIDE', entityType: 'RideRequest', entityId: ride.id });
-    return json({ requestNumber: ride.requestNumber, id: ride.id, priceBreakdown: breakdown, note: 'Payment integrations (MTN MoMo / Orange Money) are not operational in this environment.' }, 201);
+    return json({
+      requestNumber: ride.requestNumber,
+      id: ride.id,
+      priceBreakdown: {
+        ...breakdown,
+        walletAmountUsedCents,
+        remainingExternalCents,
+      },
+      paymentStatus,
+      note:
+        body.paymentMethod === 'WALLET'
+          ? 'Paid with JUSTGO Wallet.'
+          : 'External payment integrations (MTN MoMo / Orange Money) are pending verification; request is not marked paid until the provider confirms.',
+    }, 201);
   });
 }
 
@@ -55,22 +108,66 @@ export async function createDelivery(request: Request) {
       serviceType: z.enum(['TRANSPORTATION', 'FOOD_DELIVERY', 'STORE_DELIVERY', 'GROCERY_DELIVERY', 'PHARMACY_DELIVERY', 'PACKAGE_DELIVERY', 'COURIER_SERVICE']),
       pickup: z.string().min(2), destination: z.string().min(2), instructions: z.string().optional(),
       subtotalLd: z.union([z.number(), z.string()]), deliveryChargeLd: z.union([z.number(), z.string()]),
-      tipLd: z.union([z.number(), z.string()]).optional(), paymentMethod: z.enum(['MTN_MOMO', 'ORANGE_MONEY']),
+      tipLd: z.union([z.number(), z.string()]).optional(), paymentMethod: z.enum(['MTN_MOMO', 'ORANGE_MONEY', 'WALLET', 'CARD']),
     }).parse(await readJson(request));
     const profile = await customer(user.id);
     if (!profile) return error('Customer profile not found', 404);
     const subtotalCents = toCents(body.subtotalLd), deliveryCents = toCents(body.deliveryChargeLd);
-    const tipCents = body.tipLd == null ? 0 : toCents(body.tipLd), taxCents = Math.round(subtotalCents * 0.05);
+    const tipCents = body.tipLd == null ? 0 : toCents(body.tipLd);
+    const taxCents = new Decimal(subtotalCents).mul(0.05).round().toNumber();
     const breakdown = customerPriceBreakdown({ subtotalCents, deliveryOrRideCents: deliveryCents, taxCents, tipCents });
+
+    let walletAmountUsedCents = 0;
+    let remainingExternalCents = breakdown.totalCents;
+    let paymentStatus: 'PENDING' | 'PAID' = 'PENDING';
+
+    if (body.paymentMethod === 'WALLET') {
+      const wallet = await ensureCustomerWallet(user.id);
+      const available = await computeAvailableCents(wallet.id);
+      if (available < breakdown.totalCents) {
+        return error(
+          `Insufficient wallet funds. Available L$${(available / 100).toFixed(2)}; required L$${(breakdown.totalCents / 100).toFixed(2)}. Select another payment method or recharge.`,
+          400,
+        );
+      }
+      walletAmountUsedCents = breakdown.totalCents;
+      remainingExternalCents = 0;
+      paymentStatus = 'PAID';
+    } else if (body.paymentMethod === 'CARD') {
+      return error('Card checkout is unavailable in development until a PCI-compliant hosted provider is connected.', 400);
+    }
+
     const delivery = await prisma.deliveryRequest.create({ data: {
       requestNumber: number('DEL'), customerId: profile.id, serviceType: body.serviceType, pickup: body.pickup,
       destination: body.destination, instructions: body.instructions, estimatedEarnCents: deliveryCents,
-      paymentStatus: 'PENDING', adminStatus: 'PENDING', distanceKm: 4.1, durationMin: 25,
-      payment: { create: { method: body.paymentMethod, status: 'PENDING', amountCents: breakdown.totalCents } },
+      paymentStatus, adminStatus: 'PENDING', distanceKm: 4.1, durationMin: 25,
+      payment: { create: { method: body.paymentMethod, status: paymentStatus, amountCents: breakdown.totalCents } },
       taxes: { create: { amountCents: taxCents } },
       fees: { create: { type: 'DELIVERY', amountCents: deliveryCents, appliedAtComplete: false } },
     } });
-    return json({ id: delivery.id, requestNumber: delivery.requestNumber, priceBreakdown: breakdown }, 201);
+
+    if (body.paymentMethod === 'WALLET') {
+      const wallet = await ensureCustomerWallet(user.id);
+      await appendLedgerEntry({
+        walletId: wallet.id,
+        type: 'PURCHASE',
+        amountCents: breakdown.totalCents,
+        description: `Delivery ${delivery.requestNumber}`,
+        idempotencyKey: `delivery-pay:${delivery.id}`,
+        provider: 'INTERNAL_WALLET',
+        providerReference: delivery.id,
+        relatedDeliveryId: delivery.id,
+        createdById: user.id,
+        status: 'COMPLETED',
+      });
+    }
+
+    return json({
+      id: delivery.id,
+      requestNumber: delivery.requestNumber,
+      priceBreakdown: { ...breakdown, walletAmountUsedCents, remainingExternalCents },
+      paymentStatus,
+    }, 201);
   });
 }
 

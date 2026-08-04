@@ -22,6 +22,16 @@ export default function AdminPage() {
   const [audits, setAudits] = useState<Array<Record<string, unknown>>>([]);
   const [error, setError] = useState('');
   const [section, setSection] = useState('Dashboard overview');
+  const [walletData, setWalletData] = useState<{
+    wallets: Array<{ id: string; availableCents: number; pendingCents: number; user: { id: string; firstName: string; phone: string } }>;
+    pendingOrFailedAttempts: Array<Record<string, unknown>>;
+    refunds: Array<Record<string, unknown>>;
+    auditLogs: Array<Record<string, unknown>>;
+  } | null>(null);
+  const [walletQuery, setWalletQuery] = useState('');
+  const [adjustUserId, setAdjustUserId] = useState('');
+  const [adjustAmount, setAdjustAmount] = useState('0');
+  const [adjustReason, setAdjustReason] = useState('');
   const [confirm, setConfirm] = useState<{
     title: string;
     message: string;
@@ -44,6 +54,10 @@ export default function AdminPage() {
       setMerchants(m.merchants);
       setRequests(r);
       setAudits(a.logs);
+      if (section === 'Wallet and Payments') {
+        const w = await api<NonNullable<typeof walletData>>(`/api/admin/wallet?q=${encodeURIComponent(walletQuery)}`);
+        setWalletData(w);
+      }
     } catch (e) {
       const err = e as Error & { status?: number };
       setError(err.status === 401 || err.status === 403 ? 'Access denied' : err.message);
@@ -53,7 +67,12 @@ export default function AdminPage() {
 
   useEffect(() => {
     void load();
-  }, [user]);
+  }, [user, section, walletQuery]);
+
+  async function loadWalletPanel() {
+    const w = await api<NonNullable<typeof walletData>>(`/api/admin/wallet?q=${encodeURIComponent(walletQuery)}`);
+    setWalletData(w);
+  }
 
   if (loading) return <p className="state">Loading…</p>;
 
@@ -307,7 +326,99 @@ export default function AdminPage() {
             </div>
           )}
 
-          {!['Dashboard overview', 'Driver applications', 'Driver management', 'Merchant applications', 'Merchant management', 'Audit logs'].includes(section) &&
+          {section === 'Wallet and Payments' && (
+            <div className="stack">
+              <label className="field">
+                <span>Search wallets</span>
+                <input value={walletQuery} onChange={(e) => setWalletQuery(e.target.value)} placeholder="Phone, name, email" />
+              </label>
+              <div className="button-row">
+                <button type="button" className="ghost-btn compact" onClick={() => void loadWalletPanel()}>
+                  Refresh
+                </button>
+                <a className="ghost-btn compact" href="/api/admin/wallet/export">
+                  Export CSV
+                </a>
+              </div>
+              {(walletData?.wallets || []).map((w) => (
+                <article className="panel-card" key={w.id}>
+                  <strong>
+                    {w.user.firstName} · {w.user.phone}
+                  </strong>
+                  <p>
+                    Available L${(w.availableCents / 100).toFixed(2)} · Pending L$
+                    {(w.pendingCents / 100).toFixed(2)}
+                  </p>
+                  <button type="button" className="ghost-btn compact" onClick={() => setAdjustUserId(w.user.id)}>
+                    Adjust this wallet
+                  </button>
+                </article>
+              ))}
+              <h3>Documented adjustment</h3>
+              <label className="field">
+                <span>Customer user ID</span>
+                <input value={adjustUserId} onChange={(e) => setAdjustUserId(e.target.value)} />
+              </label>
+              <label className="field">
+                <span>Signed amount (LRD)</span>
+                <input value={adjustAmount} onChange={(e) => setAdjustAmount(e.target.value)} />
+              </label>
+              <label className="field">
+                <span>Reason (required)</span>
+                <input value={adjustReason} onChange={(e) => setAdjustReason(e.target.value)} />
+              </label>
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={() =>
+                  setConfirm({
+                    title: 'Confirm wallet adjustment',
+                    message: `Apply L$${adjustAmount} with reason: ${adjustReason}?`,
+                    action: async () => {
+                      await api('/api/admin/wallet', {
+                        method: 'POST',
+                        json: {
+                          userId: adjustUserId,
+                          amountLd: adjustAmount,
+                          reason: adjustReason,
+                          confirm: true,
+                        },
+                      });
+                      await loadWalletPanel();
+                    },
+                  })
+                }
+              >
+                Submit adjustment
+              </button>
+              <h3>Pending / failed attempts</h3>
+              {(walletData?.pendingOrFailedAttempts || []).map((a) => (
+                <article className="panel-card" key={String(a.id)}>
+                  <strong>
+                    {String(a.method)} · {String(a.status)} · L${(Number(a.amountCents) / 100).toFixed(2)}
+                  </strong>
+                  <small>{String(a.providerReference || a.idempotencyKey || '')}</small>
+                </article>
+              ))}
+              <h3>Refunds</h3>
+              {(walletData?.refunds || []).map((r) => (
+                <article className="panel-card" key={String(r.id)}>
+                  <strong>
+                    {String(r.status)} · L${(Number(r.amountCents) / 100).toFixed(2)}
+                  </strong>
+                  <p>{String(r.reason)}</p>
+                </article>
+              ))}
+              <h3>Wallet audit logs</h3>
+              {(walletData?.auditLogs || []).map((log) => (
+                <article className="panel-card" key={String(log.id)}>
+                  <strong>{String(log.action)}</strong>
+                </article>
+              ))}
+            </div>
+          )}
+
+          {!['Dashboard overview', 'Driver applications', 'Driver management', 'Merchant applications', 'Merchant management', 'Audit logs', 'Wallet and Payments'].includes(section) &&
             !section.includes('Ride') &&
             !section.includes('request') &&
             !section.includes('Orders') &&

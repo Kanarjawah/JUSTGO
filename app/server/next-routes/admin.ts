@@ -6,7 +6,7 @@ import { writeAudit } from '@/server/lib/audit';
 import { decryptText } from '@/server/lib/crypto';
 import { platformRevenueFromFees } from '@/server/lib/money';
 
-const sections = ['Dashboard overview','Customer management','Driver management','Merchant management','Driver applications','Merchant applications','Identity and document-verification queue','Orders and current requests','Ride requests','Food-delivery requests','Store-delivery requests','Package and courier requests','Transportation requests','Payment records','Refund and cancellation management','Platform-fee records','Tax records','Driver tips','Reviews and moderation','Complaints and incidents','Support requests','SMS delivery status','System settings','Audit logs'];
+const sections = ['Dashboard overview','Customer management','Driver management','Merchant management','Driver applications','Merchant applications','Identity and document-verification queue','Orders and current requests','Ride requests','Food-delivery requests','Store-delivery requests','Package and courier requests','Transportation requests','Payment records','Refund and cancellation management','Platform-fee records','Tax records','Driver tips','Wallet and Payments','Reviews and moderation','Complaints and incidents','Support requests','SMS delivery status','System settings','Audit logs'];
 
 export async function getControlCenter(request: Request) {
   return withAdmin(request, async () => {

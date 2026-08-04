@@ -11,6 +11,8 @@ export default function PriceBreakdown({
   customerPlatformFeeCents,
   tipCents,
   totalCents,
+  walletAmountUsedCents = 0,
+  remainingExternalCents,
 }: {
   subtotalCents: number;
   deliveryOrRideCents: number;
@@ -18,7 +20,12 @@ export default function PriceBreakdown({
   customerPlatformFeeCents: number;
   tipCents: number;
   totalCents: number;
+  walletAmountUsedCents?: number;
+  remainingExternalCents?: number;
 }) {
+  const remaining =
+    remainingExternalCents ?? Math.max(0, totalCents - walletAmountUsedCents);
+
   return (
     <div className="price-breakdown" aria-label="Price breakdown">
       <div><span>Service or product subtotal</span><strong>{ld(subtotalCents)}</strong></div>
@@ -26,6 +33,8 @@ export default function PriceBreakdown({
       <div><span>Tax</span><strong>{ld(taxCents)}</strong></div>
       <div><span>Customer platform fee</span><strong>{ld(customerPlatformFeeCents)}</strong></div>
       <div><span>Driver tip</span><strong>{ld(tipCents)}</strong></div>
+      <div><span>Wallet amount used</span><strong>{ld(walletAmountUsedCents)}</strong></div>
+      <div><span>Remaining external payment</span><strong>{ld(remaining)}</strong></div>
       <div className="total"><span>Total</span><strong>{ld(totalCents)}</strong></div>
     </div>
   );
