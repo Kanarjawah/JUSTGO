@@ -14,6 +14,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import BrandLogo from './BrandLogo';
 
 const navItems = [
   { to: '/customer', label: 'Customer', icon: UserRound },
@@ -37,10 +38,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <div className="app-frame">
       <header className="topbar">
         <div className="brand-block">
-          <div className="brand">
-            JUSTGO<span>.</span>
-          </div>
-          <p className="brand-tag">Liberia · Ride · Deliver · Trade</p>
+          <Link href="/" className="brand-link" aria-label="JUSTGO Liberia home">
+            <BrandLogo variant="header" />
+            <span>
+              <span className="brand">
+                JUSTGO<span>.</span>
+              </span>
+              <span className="brand-tag">Liberia · Ride · Deliver · Trade</span>
+            </span>
+          </Link>
         </div>
         <div className="topbar-actions">
           {user ? (
