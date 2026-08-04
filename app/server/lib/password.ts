@@ -1,11 +1,12 @@
 import bcrypt from 'bcryptjs';
+import { PASSWORD_TOO_SHORT } from '@/src/lib/auth-messages';
 
 const BCRYPT_ROUNDS = 12;
 
 /** Strong password: min 10 chars, upper, lower, digit, special. */
 export function assertStrongPassword(password: string): void {
   if (password.length < 10) {
-    throw new Error('Password must be at least 10 characters');
+    throw new Error(PASSWORD_TOO_SHORT);
   }
   if (!/[a-z]/.test(password)) {
     throw new Error('Password must include a lowercase letter');

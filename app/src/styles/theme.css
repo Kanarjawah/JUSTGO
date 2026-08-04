@@ -433,6 +433,42 @@ h2 { font-size: 1.05rem; margin: 22px 0 10px; color: var(--gold); }
 .status-badge.offline { background: rgba(125, 138, 153, 0.2); color: var(--muted); }
 
 .form-error { color: #ff8a80; font-weight: 700; }
+.field-error {
+  color: #ff8a80;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+.field-hint {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+.password-field {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.password-field input {
+  flex: 1;
+  min-width: 0;
+}
+.password-toggle {
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(7, 26, 46, 0.85);
+  color: var(--gold);
+  font-weight: 800;
+  font-size: 12px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.password-toggle:hover {
+  border-color: var(--gold);
+}
 .state { color: var(--muted); }
 .state.success { color: #7dcea0; font-weight: 700; }
 .checkbox-field {

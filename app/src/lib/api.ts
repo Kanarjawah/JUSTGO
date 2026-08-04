@@ -20,8 +20,25 @@ export async function api<T>(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error((data as { error?: string }).error || res.statusText);
-    (err as Error & { status: number }).status = res.status;
+    const payload = data as { error?: string; fields?: Record<string, string> };
+    let message = payload.error || res.statusText || 'Request failed';
+    // Never surface raw Zod/JSON payloads in the UI
+    if (
+      message.trim().startsWith('[') ||
+      message.trim().startsWith('{') ||
+      message.includes('"code":') ||
+      message.includes('"path":')
+    ) {
+      message = 'Please check your registration details and try again.';
+    }
+    const err = new Error(message) as Error & {
+      status: number;
+      fields?: Record<string, string>;
+    };
+    err.status = res.status;
+    if (payload.fields && typeof payload.fields === 'object') {
+      err.fields = payload.fields;
+    }
     throw err;
   }
   return data as T;

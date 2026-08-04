@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { ZodError } from 'zod';
 import { error, json, readJson } from '@/server/http';
 import { normalizePhone } from '@/server/lib/phone';
 import { assertStrongPassword, hashPassword } from '@/server/lib/password';
@@ -7,22 +7,24 @@ import { issueOtp } from '@/server/lib/otp';
 import { createUserWithWallet } from '@/server/lib/create-user-with-wallet';
 import { writeAudit } from '@/server/lib/audit';
 import { setSessionUserId } from '@/server/session';
-
-const registerSchema = z.object({
-  fullName: z.string().min(2).max(120),
-  phone: z.string().min(7),
-  email: z.string().email().optional().or(z.literal('')),
-  password: z.string().min(10),
-  confirmPassword: z.string().min(10),
-  accountType: z.enum(['CUSTOMER', 'DRIVER', 'MERCHANT']),
-  acceptTerms: z.literal(true),
-});
+import {
+  fieldErrorsFromZod,
+  firstRegisterErrorMessage,
+  looksLikeInternalErrorPayload,
+  registerSchema,
+} from '@/server/lib/register-validation';
+import { GENERIC_REGISTER_ERROR, PASSWORDS_MISMATCH } from '@/src/lib/auth-messages';
+import { NextResponse } from 'next/server';
 
 function splitName(fullName: string) {
   const parts = fullName.trim().split(/\s+/);
   const firstName = parts[0] || 'User';
   const lastName = parts.slice(1).join(' ') || firstName;
   return { firstName, lastName };
+}
+
+function validationError(message: string, fields?: Record<string, string>) {
+  return NextResponse.json({ error: message, ...(fields ? { fields } : {}) }, { status: 400 });
 }
 
 export async function POST(request: Request) {
@@ -32,17 +34,30 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = registerSchema.parse(await readJson(request));
-    if (body.password !== body.confirmPassword) {
-      return error('Passwords do not match', 400);
+    const raw = await readJson(request);
+    const parsed = registerSchema.safeParse(raw);
+    if (!parsed.success) {
+      const fields = fieldErrorsFromZod(parsed.error);
+      return validationError(firstRegisterErrorMessage(fields), fields);
     }
-    assertStrongPassword(body.password);
+    const body = parsed.data;
+
+    if (body.password !== body.confirmPassword) {
+      return validationError(PASSWORDS_MISMATCH, { confirmPassword: PASSWORDS_MISMATCH });
+    }
+
+    try {
+      assertStrongPassword(body.password);
+    } catch (pwErr) {
+      const message = pwErr instanceof Error ? pwErr.message : PASSWORDS_MISMATCH;
+      return validationError(message, { password: message });
+    }
 
     let phone: string;
     try {
       phone = normalizePhone(body.phone);
     } catch {
-      return error('Invalid Liberian phone number', 400);
+      return validationError('Invalid Liberian phone number', { phone: 'Invalid Liberian phone number' });
     }
 
     const email = body.email?.trim() ? body.email.trim().toLowerCase() : null;
@@ -113,8 +128,14 @@ export async function POST(request: Request) {
       201,
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Invalid registration';
-    if (message.includes('Password')) return error(message, 400);
-    return error(message, 400);
+    if (err instanceof ZodError) {
+      const fields = fieldErrorsFromZod(err);
+      return validationError(firstRegisterErrorMessage(fields), fields);
+    }
+    const message = err instanceof Error ? err.message : GENERIC_REGISTER_ERROR;
+    if (looksLikeInternalErrorPayload(message)) {
+      return validationError(GENERIC_REGISTER_ERROR);
+    }
+    return validationError(message);
   }
 }
