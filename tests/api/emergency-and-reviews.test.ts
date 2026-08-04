@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
-import { createApp } from '../../server/app';
-import { prisma } from '../../server/db';
-import { encryptText } from '../../server/lib/crypto';
+import { createApp } from '../../app/server/app';
+import { prisma } from '../../app/server/db';
+import { encryptText } from '../../app/server/lib/crypto';
 
 process.env.NODE_ENV = 'test';
 const app = createApp();

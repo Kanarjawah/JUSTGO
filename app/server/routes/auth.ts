@@ -8,6 +8,7 @@ import { normalizePhone } from '../lib/phone.js';
 import { hashOtp } from '../lib/crypto.js';
 import { writeAudit } from '../lib/audit.js';
 import { requireAuth } from '../middleware/auth.js';
+import { sendOrangeSms } from '../../../integrations/orange-sms.js';
 
 const router = Router();
 
@@ -134,13 +135,14 @@ router.post('/otp/request', otpLimiter, async (req, res) => {
       },
     });
 
-    // OTP is never returned to clients in production. Dev placeholder SMS log only.
+    // OTP is never returned to clients in production. SMS uses integrations/ placeholder only.
+    const sms = await sendOrangeSms(phone, 'JUSTGO verification code');
     await prisma.smsDeliveryLog.create({
       data: {
         phone,
-        status: 'QUEUED_PLACEHOLDER',
-        provider: 'PLACEHOLDER',
-        message: 'OTP queued (SMS provider not configured)',
+        status: sms.status,
+        provider: sms.provider,
+        message: sms.message,
       },
     });
 

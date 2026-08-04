@@ -2,13 +2,13 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
-import AppShell from '../../src/components/AppShell';
-import CustomerPage from '../../src/pages/CustomerPage';
-import MerchantPage from '../../src/pages/MerchantPage';
-import DriverPage from '../../src/pages/DriverPage';
-import { AuthProvider } from '../../src/context/AuthContext';
+import AppShell from '../../app/src/components/AppShell';
+import CustomerPage from '../../app/src/pages/CustomerPage';
+import MerchantPage from '../../app/src/pages/MerchantPage';
+import DriverPage from '../../app/src/pages/DriverPage';
+import { AuthProvider } from '../../app/src/context/AuthContext';
 
-vi.mock('../../src/lib/api', () => ({
+vi.mock('../../app/src/lib/api', () => ({
   api: vi.fn(async (path: string) => {
     if (path === '/api/auth/me') throw Object.assign(new Error('Authentication required'), { status: 401 });
     if (path === '/api/customer/services') {
@@ -93,7 +93,7 @@ describe('Navigation and labels', () => {
 describe('Customer services and labels', () => {
   it('Ride appears in Customer Services and Pickup label has no "or restaurant"', async () => {
     // Force authenticated customer via mocked me after first fail — re-mock for this test
-    const { api } = await import('../../src/lib/api');
+    const { api } = await import('../../app/src/lib/api');
     vi.mocked(api).mockImplementation(async (path: string) => {
       if (path === '/api/auth/me') {
         return {
@@ -134,7 +134,7 @@ describe('Customer services and labels', () => {
 
 describe('Merchant and Driver current request labels', () => {
   it('Store appears in Merchant Current Requests', async () => {
-    const { api } = await import('../../src/lib/api');
+    const { api } = await import('../../app/src/lib/api');
     vi.mocked(api).mockImplementation(async (path: string) => {
       if (path === '/api/auth/me') {
         return {
@@ -173,7 +173,7 @@ describe('Merchant and Driver current request labels', () => {
   });
 
   it('Transportation appears in Driver Current Requests', async () => {
-    const { api } = await import('../../src/lib/api');
+    const { api } = await import('../../app/src/lib/api');
     vi.mocked(api).mockImplementation(async (path: string) => {
       if (path === '/api/auth/me') {
         return {

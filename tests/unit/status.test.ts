@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canTransition } from '../../server/lib/status';
+import { canTransition } from '../../app/server/lib/status';
 
 describe('fulfillment stages', () => {
   it('follows Arrived → Pickup → In Transit → Delivered', () => {

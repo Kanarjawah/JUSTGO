@@ -8,6 +8,8 @@ build/
 *.log
 coverage/
 uploads/private/
+database/*.db
+database/*.db-journal
 prisma/*.db
 prisma/*.db-journal
 server-dist/

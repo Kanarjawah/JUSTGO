@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
-import { createApp } from '../../server/app';
-import { prisma } from '../../server/db';
+import { createApp } from '../../app/server/app';
+import { prisma } from '../../app/server/db';
 
 process.env.NODE_ENV = 'test';
 process.env.SESSION_SECRET = 'test-session-secret';

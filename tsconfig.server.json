@@ -13,5 +13,5 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["server/**/*.ts", "prisma/seed.ts"]
+  "include": ["app/server/**/*.ts", "database/seed.ts", "integrations/**/*.ts"]
 }

@@ -4,7 +4,7 @@ import {
   customerPriceBreakdown,
   driverEarningsBreakdown,
   platformRevenueFromFees,
-} from '../../server/lib/money';
+} from '../../app/server/lib/money';
 
 describe('fees and tips', () => {
   it('applies L$1 customer fee only in completed settlement helpers', () => {
