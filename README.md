@@ -41,3 +41,9 @@ npm run dev
 - MTN MoMo and Orange Money are listed as supported methods; live settlement is not configured.
 - Orange SMS is a placeholder until production credentials and a secure client are wired.
 - Secrets belong in `.env` (see `.env.example`). Never commit `.env`, `.env.local`, or `.env.production`.
+
+## Deploy (Vercel)
+
+Frontend static hosting is configured via `vercel.json` for https://justgo.vercel.app.
+
+The Express API and SQLite database are for local/`npm run dev` use. Production API hosting needs a persistent database (for example PostgreSQL) and a separate or serverless API deployment — not included in the static Vercel frontend build.
