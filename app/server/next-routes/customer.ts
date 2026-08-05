@@ -8,6 +8,7 @@ import { encryptText } from '@/server/lib/crypto';
 import { customerPriceBreakdown, toCents } from '@/server/lib/money';
 import { writeAudit } from '@/server/lib/audit';
 import { appendLedgerEntry, ensureUserWallet, computeAvailableCents } from '@/server/lib/wallet-ledger';
+import { sendServiceStatusSms } from '@/server/lib/sms-notifications';
 import { Decimal } from 'decimal.js';
 
 const services = ['Ride', 'Transportation', 'Food Delivery', 'Store Delivery', 'Grocery Delivery', 'Pharmacy Delivery', 'Package Delivery', 'Courier Service'];
@@ -85,6 +86,11 @@ export async function createRide(request: Request) {
     }
 
     await writeAudit({ actorId: user.id, action: 'CREATE_RIDE', entityType: 'RideRequest', entityId: ride.id });
+    // Service notification only — SMS is never proof of payment.
+    void sendServiceStatusSms(user.phone, {
+      serviceLabel: 'Ride',
+      status: `Request ${ride.requestNumber} received`,
+    }).catch(() => undefined);
     return json({
       requestNumber: ride.requestNumber,
       id: ride.id,
@@ -161,6 +167,12 @@ export async function createDelivery(request: Request) {
         status: 'COMPLETED',
       });
     }
+
+    // Service notification only — SMS is never proof of payment.
+    void sendServiceStatusSms(user.phone, {
+      serviceLabel: 'Delivery',
+      status: `Request ${delivery.requestNumber} received`,
+    }).catch(() => undefined);
 
     return json({
       id: delivery.id,

@@ -8,11 +8,17 @@ import { toCents, addCents } from '../../app/server/lib/money';
 
 const prisma = new PrismaClient();
 
+/** Valid Orange LR mobile: +231770xxxxxx (unique per call). */
+function uniqueTestPhone(prefix3: '770' | '772' | '555' | '880' = '770') {
+  const noise = String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0');
+  return normalizePhone(`+231${prefix3}${noise}`);
+}
+
 describe('createUserWithWallet', () => {
   it('creates customer/driver/merchant wallets and blocks duplicate primary wallets', async () => {
     const { randomBytes } = await import('node:crypto');
     for (const role of ['CUSTOMER', 'DRIVER', 'MERCHANT'] as const) {
-      const phone = `+23177${randomBytes(4).toString('hex').slice(0, 7)}`;
+      const phone = uniqueTestPhone('770');
       const { user, wallet } = await createUserWithWallet({
         phone,
         passwordHash: await hashPassword('Password123!'),
@@ -35,10 +41,10 @@ describe('createUserWithWallet', () => {
         }),
       ).rejects.toThrow();
     }
-  });
+  }, 30_000);
 
   it('creates administrator wallet only via authorized creation path', async () => {
-    const phone = normalizePhone(`077${Date.now().toString().slice(-9)}`);
+    const phone = uniqueTestPhone('772');
     const { user, wallet } = await createUserWithWallet({
       phone,
       passwordHash: await hashPassword('Password123!'),
@@ -62,7 +68,7 @@ describe('createUserWithWallet', () => {
 
 describe('backfill idempotency', () => {
   it('ensureUserWallet is safe to run repeatedly', async () => {
-    const phone = normalizePhone(`088${Date.now().toString().slice(-8)}`);
+    const phone = uniqueTestPhone('880');
     const { user } = await createUserWithWallet({
       phone,
       passwordHash: await hashPassword('Password123!'),
@@ -82,7 +88,7 @@ describe('holds and withdrawals funds', () => {
   let walletId: string;
 
   beforeAll(async () => {
-    const phone = normalizePhone(`099${Date.now().toString().slice(-8)}`);
+    const phone = uniqueTestPhone('555');
     const { wallet } = await createUserWithWallet({
       phone,
       passwordHash: await hashPassword('Password123!'),

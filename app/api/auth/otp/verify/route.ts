@@ -2,22 +2,24 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { error, json, readJson } from '@/server/http';
 import { normalizePhone } from '@/server/lib/phone';
-import { rateLimit } from '@/server/lib/rate-limit';
+import { rateLimitOtpVerify } from '@/server/lib/rate-limit';
 import { verifyOtpCode } from '@/server/lib/otp';
 import { writeAudit } from '@/server/lib/audit';
 import { setSessionUserId } from '@/server/session';
 
 export async function POST(request: Request) {
-  const limited = rateLimit(request, 'otp-verify', 20, 15 * 60_000);
-  if (!limited.ok) {
-    return error(`Too many verification attempts. Retry in ${limited.retryAfterSec}s`, 429);
-  }
-
   try {
     const body = z
       .object({ phone: z.string(), code: z.string().min(4).max(10) })
       .parse(await readJson(request));
     const phone = normalizePhone(body.phone);
+
+    const existingUser = await prisma.user.findUnique({ where: { phone }, select: { id: true } });
+    const limited = rateLimitOtpVerify({ request, phone, userId: existingUser?.id });
+    if (!limited.ok) {
+      return error(`Too many verification attempts. Retry in ${limited.retryAfterSec}s`, 429);
+    }
+
     const otp = await verifyOtpCode(phone, body.code);
 
     const user = await prisma.user.findUnique({ where: { phone } });
@@ -73,6 +75,19 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     const status = (err as Error & { status?: number }).status ?? 400;
-    return error(err instanceof Error ? err.message : 'Verification failed', status);
+    const message = err instanceof Error ? err.message : 'Verification failed';
+    if (
+      message.toLowerCase().includes('phone') ||
+      message.toLowerCase().includes('landline') ||
+      message.toLowerCase().includes('unsupported')
+    ) {
+      return error(message, 400);
+    }
+    // Safe messages only — never Orange bodies or stack traces.
+    if (status === 429) return error(message, status);
+    if (message === 'Verification code expired' || message === 'Invalid verification code') {
+      return error(message, status);
+    }
+    return error('Unable to verify the code. Please try again.', status);
   }
 }

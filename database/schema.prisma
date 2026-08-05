@@ -762,12 +762,16 @@ model SystemSetting {
 }
 
 model SmsDeliveryLog {
-  id        String   @id @default(cuid())
-  phone     String
-  status    String
-  provider  String   @default("PLACEHOLDER")
-  message   String
-  createdAt DateTime @default(now())
+  id                String   @id @default(cuid())
+  /// Masked MSISDN only (e.g. +231******0002) — never full phone or OTP body.
+  phone             String
+  status            String
+  provider          String   @default("PLACEHOLDER")
+  /// Safe summary only — never SMS body or OTP plaintext.
+  message           String
+  purpose           String?
+  providerReference String?
+  createdAt         DateTime @default(now())
 }
 
 model IdentityDocument {

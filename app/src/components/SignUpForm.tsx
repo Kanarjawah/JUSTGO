@@ -135,7 +135,7 @@ export default function SignUpForm({ defaultAccountType = 'CUSTOMER', onSwitchTo
     setError('');
     setBusy(true);
     try {
-      await api('/api/auth/otp/request', { method: 'POST', json: { phone } });
+      await api('/api/auth/otp/resend', { method: 'POST', json: {} });
       setMessage(
         'A new code was requested. In development, check the server terminal — the OTP is never sent to the browser.',
       );
@@ -151,8 +151,8 @@ export default function SignUpForm({ defaultAccountType = 'CUSTOMER', onSwitchTo
       <form className="auth-card" onSubmit={onVerify} aria-label="Verify phone">
         <h1>Verify phone</h1>
         <p className="page-sub">
-          Enter the OTP sent to your Liberian number. In development the code is printed only in the
-          server terminal — never returned to the browser.
+          Enter the OTP sent to your Liberian number. Codes expire in 5 minutes. JUSTGO never returns
+          the code to the browser.
         </p>
         {message ? <p className="muted">{message}</p> : null}
         <label className="field">

@@ -5,6 +5,7 @@ import { withAdmin } from '@/server/route-handler';
 import { writeAudit } from '@/server/lib/audit';
 import { decryptText } from '@/server/lib/crypto';
 import { platformRevenueFromFees } from '@/server/lib/money';
+import { sendAccountApprovalSms } from '@/server/lib/sms-notifications';
 
 const sections = ['Dashboard overview','Customer management','Driver management','Merchant management','Driver applications','Merchant applications','Identity and document-verification queue','Orders and current requests','Ride requests','Food-delivery requests','Store-delivery requests','Package and courier requests','Transportation requests','Payment records','Refund and cancellation management','Platform-fee records','Tax records','Driver tips','Wallet and Payments','Reviews and moderation','Complaints and incidents','Support requests','SMS delivery status','System settings','Audit logs'];
 
@@ -44,16 +45,32 @@ export async function getAuditLogs(request: Request) {
 export async function decideDriver(request: Request, id: string) {
   return withAdmin(request, async (user) => {
     const body = z.object({ decision: z.enum(['APPROVED','REJECTED']), confirm: z.literal(true) }).parse(await readJson(request));
-    const driver = await prisma.driverProfile.update({ where: { id }, data: { applicationStatus: body.decision } });
+    const driver = await prisma.driverProfile.update({
+      where: { id },
+      data: { applicationStatus: body.decision },
+      include: { user: { select: { phone: true } } },
+    });
     await writeAudit({ actorId: user.id, action: `DRIVER_APPLICATION_${body.decision}`, entityType: 'DriverProfile', entityId: id });
+    void sendAccountApprovalSms(driver.user.phone, {
+      roleLabel: 'driver',
+      approved: body.decision === 'APPROVED',
+    }).catch(() => undefined);
     return json({ driver });
   });
 }
 export async function decideMerchant(request: Request, id: string) {
   return withAdmin(request, async (user) => {
     const body = z.object({ decision: z.enum(['APPROVED','REJECTED']), confirm: z.literal(true) }).parse(await readJson(request));
-    const merchant = await prisma.merchantProfile.update({ where: { id }, data: { applicationStatus: body.decision } });
+    const merchant = await prisma.merchantProfile.update({
+      where: { id },
+      data: { applicationStatus: body.decision },
+      include: { user: { select: { phone: true } } },
+    });
     await writeAudit({ actorId: user.id, action: `MERCHANT_APPLICATION_${body.decision}`, entityType: 'MerchantProfile', entityId: id });
+    void sendAccountApprovalSms(merchant.user.phone, {
+      roleLabel: 'merchant',
+      approved: body.decision === 'APPROVED',
+    }).catch(() => undefined);
     return json({ merchant });
   });
 }

@@ -94,9 +94,7 @@ export async function POST(request: Request) {
       metadata: { role, walletPublicReference: wallet.publicReference },
     });
 
-    if (role === 'CUSTOMER') {
-      await setSessionUserId(user.id);
-    }
+    await setSessionUserId(user.id);
 
     const dashboard =
       role === 'DRIVER' ? '/driver' : role === 'MERCHANT' ? '/merchant' : '/customer';

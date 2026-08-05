@@ -5,8 +5,15 @@ import { withUser } from '@/server/route-handler';
 import { writeAudit } from '@/server/lib/audit';
 import { canTransition, type FulfillmentStageName } from '@/server/lib/status';
 import { driverEarningsBreakdown, PLATFORM_FEE_CENTS } from '@/server/lib/money';
+import { sendServiceStatusSms, sendTransactionStatusSms } from '@/server/lib/sms-notifications';
 
 const driver = (userId: string) => prisma.driverProfile.findUnique({ where: { userId }, include: { availability: true } });
+
+function notifyCustomerStatus(phone: string | undefined, requestNumber: string, stage: string) {
+  if (!phone) return;
+  void sendServiceStatusSms(phone, { status: stage.replaceAll('_', ' ') }).catch(() => undefined);
+  void sendTransactionStatusSms(phone, { requestNumber, status: stage.replaceAll('_', ' ') }).catch(() => undefined);
+}
 
 export async function getDashboard() {
   return withUser('DRIVER', async (user) => {
@@ -70,7 +77,10 @@ export async function setStage(request: Request, kind: string, id: string) {
     if (!profile) return error('Driver profile not found', 404);
     if (kind !== 'ride' && kind !== 'delivery') return error('Invalid request kind');
     if (kind === 'ride') {
-      const row = await prisma.rideRequest.findUnique({ where: { id }, include: { assignment: true, tips: true } });
+      const row = await prisma.rideRequest.findUnique({
+        where: { id },
+        include: { assignment: true, tips: true, customer: { include: { user: true } } },
+      });
       if (!row || row.assignment?.driverId !== profile.id) return error('Forbidden', 403);
       const check = canTransition(row.fulfillmentStage as FulfillmentStageName | null, stage);
       if (!check.ok) return error(check.error);
@@ -82,9 +92,13 @@ export async function setStage(request: Request, kind: string, id: string) {
           if (row.assignment) await tx.driverAssignment.update({ where: { id: row.assignment.id }, data: { active: false } });
         }
       });
+      notifyCustomerStatus(row.customer.user.phone, row.requestNumber, stage);
       return json({ stage, earnings: driverEarningsBreakdown(row.estimatedFareCents, row.tips.reduce((s,t)=>s+t.amountCents,0), stage === 'DELIVERED') });
     }
-    const row = await prisma.deliveryRequest.findUnique({ where: { id }, include: { assignment: true, tips: true } });
+    const row = await prisma.deliveryRequest.findUnique({
+      where: { id },
+      include: { assignment: true, tips: true, customer: { include: { user: true } } },
+    });
     if (!row || row.assignment?.driverId !== profile.id) return error('Forbidden', 403);
     const check = canTransition(row.fulfillmentStage as FulfillmentStageName | null, stage);
     if (!check.ok) return error(check.error);
@@ -96,6 +110,7 @@ export async function setStage(request: Request, kind: string, id: string) {
         if (row.assignment) await tx.driverAssignment.update({ where: { id: row.assignment.id }, data: { active: false } });
       }
     });
+    notifyCustomerStatus(row.customer.user.phone, row.requestNumber, stage);
     return json({ stage, earnings: driverEarningsBreakdown(row.estimatedEarnCents, row.tips.reduce((s,t)=>s+t.amountCents,0), stage === 'DELIVERED') });
   });
 }

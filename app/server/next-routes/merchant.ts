@@ -4,6 +4,7 @@ import { error, json, readJson } from '@/server/http';
 import { withUser } from '@/server/route-handler';
 import { merchantSettlementBreakdown } from '@/server/lib/money';
 import { writeAudit } from '@/server/lib/audit';
+import { sendServiceStatusSms } from '@/server/lib/sms-notifications';
 
 const merchant = (userId: string) => prisma.merchantProfile.findUnique({ where: { userId }, include: { store: { include: { products: true } } } });
 
@@ -29,11 +30,18 @@ export async function setPrep(request: Request, id: string) {
     const status = z.enum(['ACCEPTED','PREPARING','READY_FOR_PICKUP']).parse((await readJson<{status: unknown}>(request)).status);
     const profile = await merchant(user.id);
     if (!profile?.store) return error('Store not found', 404);
-    const order = await prisma.order.findUnique({ where: { id } });
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { customer: { include: { user: { select: { phone: true } } } } },
+    });
     if (!order || order.storeId !== profile.store.id) return error('Forbidden', 403);
     const updated = await prisma.order.update({ where: { id }, data: { merchantPrepStatus: status } });
     if (order.deliveryRequestId) await prisma.deliveryRequest.update({ where: { id: order.deliveryRequestId }, data: { merchantPrepStatus: status, adminStatus: status === 'ACCEPTED' ? 'ACCEPTED' : undefined } });
     await writeAudit({ actorId: user.id, action: 'MERCHANT_PREP_STATUS', entityType: 'Order', entityId: id, metadata: { status } });
+    void sendServiceStatusSms(order.customer.user.phone, {
+      serviceLabel: 'Order',
+      status: `${order.requestNumber} ${status.replaceAll('_', ' ').toLowerCase()}`,
+    }).catch(() => undefined);
     return json({ orderId: updated.id, merchantPrepStatus: updated.merchantPrepStatus });
   });
 }
@@ -43,10 +51,17 @@ export async function rejectOrder(request: Request, id: string) {
     z.object({ confirm: z.literal(true) }).parse(await readJson(request));
     const profile = await merchant(user.id);
     if (!profile?.store) return error('Store not found', 404);
-    const order = await prisma.order.findUnique({ where: { id } });
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { customer: { include: { user: { select: { phone: true } } } } },
+    });
     if (!order || order.storeId !== profile.store.id) return error('Forbidden', 403);
     if (order.deliveryRequestId) await prisma.deliveryRequest.update({ where: { id: order.deliveryRequestId }, data: { adminStatus: 'REJECTED' } });
     await writeAudit({ actorId: user.id, action: 'MERCHANT_REJECT_ORDER', entityType: 'Order', entityId: id });
+    void sendServiceStatusSms(order.customer.user.phone, {
+      serviceLabel: 'Order',
+      status: `${order.requestNumber} was declined by the store`,
+    }).catch(() => undefined);
     return json({ ok: true });
   });
 }
